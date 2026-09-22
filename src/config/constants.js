@@ -1,5 +1,5 @@
 const ESTADOS_REPARACION = {
-  PENDIENTE: 'pendiente',
+  PENDIENTE: 'pendiente',  
   EN_PROCESO: 'en_proceso', 
   COMPLETADA: 'completada', 
   CANCELADA: 'cancelada', 
