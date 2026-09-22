@@ -6,9 +6,13 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest",
+    "test": "jest --testPathPattern=tests/unit",
+    "test:integration": "jest --testPathPattern=tests/integration",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "smoke-test": "node scripts/smoke-test.js"
   },
   "keywords": [
     "motos",
@@ -20,10 +24,15 @@
   ],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=16"
+  },
   "dependencies": {
     "express": "^4.19.2"
   },
   "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-plugin-jest": "^27.9.0",
     "jest": "^29.7.0",
     "nodemon": "^3.1.4",
     "supertest": "^6.3.4"
