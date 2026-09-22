@@ -1,0 +1,57 @@
+name: Build & Package for Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: build-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  package:
+    name: Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias de produccion
+        run: npm ci --omit=dev
+
+      - name: Armar el paquete de despliegue
+        id: package
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          ARTIFACT_NAME="taller-motos-api-${VERSION}-${SHORT_SHA}"
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+
+          mkdir -p "dist/$ARTIFACT_NAME"
+          cp -r src "dist/$ARTIFACT_NAME/src"
+          cp package.json package-lock.json "dist/$ARTIFACT_NAME/"
+          cp -r node_modules "dist/$ARTIFACT_NAME/node_modules"
+
+          tar -czf "dist/$ARTIFACT_NAME.tar.gz" -C dist "$ARTIFACT_NAME"
+
+      - name: Verificar que el paquete arranca correctamente
+        run: |
+          mkdir -p /tmp/verificacion
+          tar -xzf "dist/${{ steps.package.outputs.artifact_name }}.tar.gz" -C /tmp/verificacion
+          SERVER_ENTRY="/tmp/verificacion/${{ steps.package.outputs.artifact_name }}/src/server.js" \
+          SMOKE_TEST_PORT=4600 \
+          node scripts/smoke-test.js
+
+      - name: Publicar artefacto de despliegue
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: dist/${{ steps.package.outputs.artifact_name }}.tar.gz
+          retention-days: 30
