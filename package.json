@@ -1,0 +1,31 @@
+{
+  "name": "taller-motos-api",
+  "version": "1.0.0",
+  "description": "API para gestion de reparaciones y repuestos de motocicletas, con arquitectura en capas",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [
+    "motos",
+    "taller",
+    "reparaciones",
+    "repuestos",
+    "nodejs",
+    "arquitectura-en-capas"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.4",
+    "supertest": "^6.3.4"
+  }
+}
