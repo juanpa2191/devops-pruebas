@@ -76,7 +76,7 @@ npm run test:coverage   # cobertura combinada (unit + integration)
 
 ## Integración continua (CI)
 
-El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre en cada Pull Request contra `main` (y en cada push a `main`) con 6 jobs independientes:
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre **solo en Pull Requests contra `main`** (sin importar la rama de origen) con 6 jobs independientes, y actúa como gate de merge:
 
 | Job (nombre del check) | Qué hace |
 |---|---|
@@ -91,9 +91,16 @@ El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre en cada
 
 En GitHub: **Settings → Branches → Branch protection rules → Add rule** (rama `main`) → activar **"Require status checks to pass before merging"** y seleccionar los 6 checks: `Lint`, `Unit Test`, `Coverage`, `Build`, `Integration Test`, `Security Checks` (aparecen en la lista después de que el workflow corra al menos una vez en un PR).
 
-### CD (pendiente)
+### Empaquetado post-merge
 
-El workflow de CI no hace deploy. Cuando se aborde el CD, queda pendiente definir: destino del deploy (contenedor, servicio serverless, VM), y si el stage `Build` pasa a generar una imagen Docker versionada en vez del smoke-test actual.
+El workflow [`.github/workflows/build-deploy.yml`](.github/workflows/build-deploy.yml) corre **solo con push a `main`** (es decir, justo después de que un PR se mergea) — no vuelve a correr el CI, que ya se validó en el PR. En su lugar:
+
+1. Instala únicamente dependencias de producción (`npm ci --omit=dev`).
+2. Empaqueta `src/`, `package.json`, `package-lock.json` y `node_modules` en un `.tar.gz` versionado (`taller-motos-api-<version>-<sha corto>.tar.gz`).
+3. Extrae ese mismo paquete en un directorio aislado y corre el smoke-test contra él (`SERVER_ENTRY` apuntando al `server.js` extraído), para confirmar que el artefacto arranca con solo las dependencias de producción, no solo en el checkout completo del repo.
+4. Publica el `.tar.gz` como artifact del workflow (30 días de retención), listo para que un futuro job de CD lo descargue y lo despliegue.
+
+Este workflow todavía no hace deploy a ningún destino — solo prepara y valida el artefacto. Cuando se defina dónde desplegar (VM, contenedor, servicio serverless), se agrega un job adicional que tome ese artifact y lo publique ahí.
 
 ## Endpoints principales
 

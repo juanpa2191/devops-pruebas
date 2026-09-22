@@ -30,7 +30,9 @@ function verificarHealth() {
 }
 
 async function main() {
-  const serverPath = path.join(__dirname, '..', 'src', 'server.js');
+  const serverPath = process.env.SERVER_ENTRY
+    ? path.resolve(process.env.SERVER_ENTRY)
+    : path.join(__dirname, '..', 'src', 'server.js');
   const proceso = spawn(process.execPath, [serverPath], {
     env: { ...process.env, PORT: String(PORT) },
     stdio: 'inherit',
