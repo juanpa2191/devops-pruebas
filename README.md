@@ -82,14 +82,22 @@ El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre **solo 
 |---|---|
 | `Lint` | `npm run lint` (ESLint) |
 | `Unit Test` | `npm test` — pruebas unitarias |
-| `Coverage` | `npm run test:coverage` — falla si la cobertura baja del umbral; publica el reporte como artifact |
+| `Coverage` | `npm run test:coverage` — falla si la cobertura baja del umbral; publica el reporte HTML completo como artifact |
 | `Build` | Instala dependencias, levanta el servidor y hace smoke-test a `/health` (`npm run smoke-test`) |
 | `Integration Test` | `npm run test:integration` — pruebas end-to-end con `supertest` |
 | `Security Checks` | `npm audit --audit-level=high` — vulnerabilidades conocidas en dependencias |
 
+Además corre un 7mo job, **informativo, no forma parte del gate de merge**:
+
+| Job | Qué hace |
+|---|---|
+| `Coverage Comment` | Postea (y actualiza en cada push) un comentario en el PR con una tabla de cobertura por archivo, coloreada según el %, usando [`ArtiomTr/jest-coverage-report-action`](https://github.com/ArtiomTr/jest-coverage-report-action). Es solo para verla de un vistazo sin descargar el artifact — el umbral real que bloquea el merge lo sigue poniendo el job `Coverage`. |
+
+> `Coverage Comment` corre con `permissions: contents: write, pull-requests: write, checks: write` (requeridos por la action para comentar y anotar el PR). Con PRs desde ramas del mismo repo (tu caso) funciona sin nada extra; si en el futuro aceptás PRs desde forks, esa combinación falla ahí con "Resource not accessible by integration" porque los forks no reciben permisos de escritura por defecto — en ese caso habría que mover el trigger a `pull_request_target`.
+
 ### Requerir estos checks para poder mergear un PR
 
-En GitHub: **Settings → Branches → Branch protection rules → Add rule** (rama `main`) → activar **"Require status checks to pass before merging"** y seleccionar los 6 checks: `Lint`, `Unit Test`, `Coverage`, `Build`, `Integration Test`, `Security Checks` (aparecen en la lista después de que el workflow corra al menos una vez en un PR).
+En GitHub: **Settings → Branches → Branch protection rules → Add rule** (rama `main`) → activar **"Require status checks to pass before merging"** y seleccionar los 6 checks que son gate: `Lint`, `Unit Test`, `Coverage`, `Build`, `Integration Test`, `Security Checks` (aparecen en la lista después de que el workflow corra al menos una vez en un PR). **No** selecciones `Coverage Comment` — es informativo, no debe bloquear nada.
 
 ### Empaquetado y deploy post-merge (CD)
 
