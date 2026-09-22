@@ -91,14 +91,78 @@ El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre **solo 
 
 En GitHub: **Settings → Branches → Branch protection rules → Add rule** (rama `main`) → activar **"Require status checks to pass before merging"** y seleccionar los 6 checks: `Lint`, `Unit Test`, `Coverage`, `Build`, `Integration Test`, `Security Checks` (aparecen en la lista después de que el workflow corra al menos una vez en un PR).
 
-### Empaquetado post-merge
+### Empaquetado y deploy post-merge (CD)
 
-El workflow [`.github/workflows/build-deploy.yml`](.github/workflows/build-deploy.yml) corre **solo con push a `main`** (es decir, justo después de que un PR se mergea) — no vuelve a correr el CI, que ya se validó en el PR. En su lugar:
+El workflow [`.github/workflows/build-deploy.yml`](.github/workflows/build-deploy.yml) corre **solo con push a `main`** (justo después de que un PR se mergea) — no vuelve a correr el CI, que ya se validó en el PR. Tiene dos jobs:
 
+**`Package`**
 1. Instala únicamente dependencias de producción (`npm ci --omit=dev`).
-2. Empaqueta `src/`, `package.json`, `package-lock.json` y `node_modules` en un `.tar.gz` versionado (`taller-motos-api-<version>-<sha corto>.tar.gz`).
+2. Empaqueta `src/`, `package.json`, `package-lock.json`, `ecosystem.config.js` y `node_modules` en un `.tar.gz` versionado (`taller-motos-api-<version>-<sha corto>.tar.gz`).
 3. Extrae ese mismo paquete en un directorio aislado y corre el smoke-test contra él (`SERVER_ENTRY` apuntando al `server.js` extraído), para confirmar que el artefacto arranca con solo las dependencias de producción, no solo en el checkout completo del repo.
-4. Publica el `.tar.gz` como artifact del workflow (30 días de retención), listo para que un futuro job de CD lo descargue y lo despliegue.
+4. Publica el `.tar.gz` como artifact del workflow (30 días de retención).
+
+**`Deploy`** (depende de `Package`, usa el [GitHub Environment](#configurar-el-environment-production-y-sus-secrets) `production`)
+1. Descarga el artefacto generado por `Package`.
+2. Se conecta por SSH al VPS (clave cargada vía `webfactory/ssh-agent`).
+3. Copia el `.tar.gz` a `/tmp` en el VPS.
+4. Corre [`scripts/deploy-remote.sh`](scripts/deploy-remote.sh) en el VPS: extrae el release en `$DEPLOY_PATH/releases/<artifact>`, actualiza el symlink `$DEPLOY_PATH/current` para que apunte ahí, recarga la app con PM2 (zero-downtime si ya estaba corriendo) usando [`ecosystem.config.js`](ecosystem.config.js), y borra releases viejos (conserva los últimos 5).
+
+Este flujo asume que **nginx ya está configurado como reverse proxy** en el VPS apuntando al puerto donde corre la app (por defecto `3030`, el mismo default de [`src/server.js`](src/server.js)); el deploy no toca la config de nginx.
+
+#### Setup de una sola vez en el VPS (Hostinger)
+
+Antes del primer deploy automático, a mano en el VPS:
+
+```bash
+# 1. Node.js 20.x y PM2
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
+sudo apt-get install -y nodejs
+sudo npm install -g pm2
+pm2 startup   # deja el comando que te imprime para que PM2 sobreviva a un reboot
+
+# 2. Usuario y carpeta de despliegue (ajustar segun tu convencion)
+sudo useradd -m -s /bin/bash deploy   # si no existe ya
+sudo mkdir -p /home/deploy/apps/taller-motos-api/releases
+sudo chown -R deploy:deploy /home/deploy/apps/taller-motos-api
+
+# 3. Clave SSH para que GitHub Actions se conecte como "deploy"
+#    (generar el par en tu maquina, NO en el VPS, y copiar solo la publica)
+ssh-copy-id -i ruta/a/tu_clave.pub deploy@TU_VPS_IP
+```
+
+Nginx (ejemplo mínimo, adaptar dominio y certificados):
+
+```nginx
+server {
+    listen 80;
+    server_name tu-dominio.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3030;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+#### Configurar el Environment `production` y sus secrets
+
+En GitHub: **Settings → Environments → New environment** → nombre `production` (tiene que coincidir con `environment: production` en el job `Deploy`). Ahí, en **Environment secrets**, agregar:
+
+| Secret | Valor |
+|---|---|
+| `VPS_HOST` | IP o hostname del VPS |
+| `VPS_USER` | usuario SSH (ej. `deploy`) |
+| `VPS_SSH_KEY` | clave **privada** SSH completa (la pública ya debe estar en `~/.ssh/authorized_keys` del VPS) |
+| `VPS_PORT` | puerto SSH, solo si no es el 22 |
+| `DEPLOY_PATH` | carpeta base en el VPS (ej. `/home/deploy/apps/taller-motos-api`) |
+
+(Opcional pero recomendado) en ese mismo Environment activá **Required reviewers** si querés aprobar manualmente cada deploy a producción antes de que corra.
+
+> No pude probar el job `Deploy` contra un VPS real (no tengo acceso a tu servidor) — sí verifiqué localmente que el `.tar.gz` se arma bien, incluye `ecosystem.config.js` y arranca correctamente al extraerlo. El primer deploy automático conviene mirarlo en vivo (pestaña Actions) por si algo en tu VPS especifico (rutas, permisos, version de PM2) necesita un ajuste.
 
 Este workflow todavía no hace deploy a ningún destino — solo prepara y valida el artefacto. Cuando se defina dónde desplegar (VM, contenedor, servicio serverless), se agrega un job adicional que tome ese artifact y lo publique ahí.
 
