@@ -160,11 +160,11 @@ En GitHub: **Settings → Environments → New environment** → nombre `product
 | `VPS_PORT` | puerto SSH, solo si no es el 22 |
 | `DEPLOY_PATH` | carpeta base en el VPS (ej. `/home/deploy/apps/taller-motos-api`) |
 
-(Opcional pero recomendado) en ese mismo Environment activá **Required reviewers** si querés aprobar manualmente cada deploy a producción antes de que corra.
+#### Aprobación manual antes de desplegar (opcional)
+
+En el mismo Environment `production`, en **Deployment protection rules**, activá **Required reviewers** y agregá a la persona (o equipo, con permiso de escritura en el repo) que debe aprobar cada deploy. Con esto, el job `Deploy` queda en estado "Waiting" apenas termina `Package`, y no se conecta al VPS hasta que esa persona lo apruebe desde la pestaña **Actions** de la corrida.
 
 > No pude probar el job `Deploy` contra un VPS real (no tengo acceso a tu servidor) — sí verifiqué localmente que el `.tar.gz` se arma bien, incluye `ecosystem.config.js` y arranca correctamente al extraerlo. El primer deploy automático conviene mirarlo en vivo (pestaña Actions) por si algo en tu VPS especifico (rutas, permisos, version de PM2) necesita un ajuste.
-
-Este workflow todavía no hace deploy a ningún destino — solo prepara y valida el artefacto. Cuando se defina dónde desplegar (VM, contenedor, servicio serverless), se agrega un job adicional que tome ese artifact y lo publique ahí.
 
 ## Endpoints principales
 
