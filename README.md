@@ -54,17 +54,46 @@ npm run dev       # inicia el servidor con nodemon (recarga automática)
 
 Variable de entorno opcional: `PORT` (puerto en el que escucha el servidor).
 
+## Calidad de código
+
+```bash
+npm run lint      # revisa el codigo con ESLint
+npm run lint:fix  # revisa y corrige automaticamente lo que se pueda
+```
+
 ## Pruebas
 
 ```bash
-npm test              # ejecuta todas las pruebas unitarias
-npm run test:watch    # modo watch
-npm run test:coverage # con reporte de cobertura
+npm test                # pruebas unitarias (tests/unit)
+npm run test:integration # pruebas de integracion end-to-end (tests/integration)
+npm run test:watch      # modo watch (todas las pruebas)
+npm run test:coverage   # cobertura combinada (unit + integration)
 ```
 
-Las pruebas unitarias cubren:
-- **Servicios** (`tests/unit/services`): lógica de negocio con repositorios mockeados (Jest mocks), incluyendo reglas de validación y flujos de error.
-- **Repositorios** (`tests/unit/repositories`): comportamiento real de la capa de datos en memoria.
+- **Unitarias** (`tests/unit`): servicios con repositorios mockeados (Jest mocks) y repositorios reales en memoria, aisladas del resto del sistema.
+- **Integración** (`tests/integration`): flujo completo vía HTTP con `supertest` contra la app real (`createApp()`), sin mocks — routes → controllers → services → repositories.
+- **Cobertura**: umbral mínimo forzado en `jest.config.js` (statements 75%, branches 70%, functions 65%, lines 75%). `src/server.js` se excluye del cálculo porque es solo el punto de arranque (se valida con el smoke-test del CI).
+
+## Integración continua (CI)
+
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre en cada Pull Request contra `main` (y en cada push a `main`) con 6 jobs independientes:
+
+| Job (nombre del check) | Qué hace |
+|---|---|
+| `Lint` | `npm run lint` (ESLint) |
+| `Unit Test` | `npm test` — pruebas unitarias |
+| `Coverage` | `npm run test:coverage` — falla si la cobertura baja del umbral; publica el reporte como artifact |
+| `Build` | Instala dependencias, levanta el servidor y hace smoke-test a `/health` (`npm run smoke-test`) |
+| `Integration Test` | `npm run test:integration` — pruebas end-to-end con `supertest` |
+| `Security Checks` | `npm audit --audit-level=high` — vulnerabilidades conocidas en dependencias |
+
+### Requerir estos checks para poder mergear un PR
+
+En GitHub: **Settings → Branches → Branch protection rules → Add rule** (rama `main`) → activar **"Require status checks to pass before merging"** y seleccionar los 6 checks: `Lint`, `Unit Test`, `Coverage`, `Build`, `Integration Test`, `Security Checks` (aparecen en la lista después de que el workflow corra al menos una vez en un PR).
+
+### CD (pendiente)
+
+El workflow de CI no hace deploy. Cuando se aborde el CD, queda pendiente definir: destino del deploy (contenedor, servicio serverless, VM), y si el stage `Build` pasa a generar una imagen Docker versionada en vez del smoke-test actual.
 
 ## Endpoints principales
 
@@ -102,4 +131,4 @@ Las pruebas unitarias cubren:
 
 - Reemplazar los repositorios en memoria por una implementación con base de datos (por ejemplo PostgreSQL o MongoDB), manteniendo la misma interfaz.
 - Agregar autenticación/autorización para diferenciar mecánicos, administradores y clientes.
-- Agregar pruebas de integración de extremo a extremo con `supertest` (ya incluido como devDependency).
+- Definir e implementar el CD (Docker + deploy) sobre la base del CI actual.
