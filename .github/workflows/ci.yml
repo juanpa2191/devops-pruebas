@@ -59,8 +59,9 @@ jobs:
     name: Coverage Comment
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
+      checks: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
